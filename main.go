@@ -42,7 +42,11 @@ func isGood(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	// var req []Data
 	req := new([]Data)
 	validator := new(Validator)
-	err := json.NewDecoder(r.Body).Decode(req)
+	if r.Body == nil {
+		returnError(w, &Error{Message: "no pass some body content"})
+		return
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		returnError(w, &Error{Message: "fault to decode passed data"})
 		return

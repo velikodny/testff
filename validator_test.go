@@ -10,6 +10,109 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type testCase struct {
+	Comment  string
+	Request  body
+	Expected body
+}
+
+type body struct {
+	JSON       string
+	StatusCode int
+}
+
+var testCases = []testCase{
+	{
+		Comment: "a body has wrong check type",
+		Request: body{
+			JSON: `[
+				{
+				  "checkType": "DEVICE1",
+				  "activityType": "SIGNUP",
+				  "checkSessionKey": "string",
+				  "activityData": [
+					{
+					  "kvpKey": "ip.address",
+					  "kvpValue": "true",
+					  "kvpType": "general.bool"
+					}
+				  ]
+				}
+			  ]`},
+		Expected: body{
+			StatusCode: 500},
+	},
+	{
+		Comment: "without error into a body",
+		Request: body{
+			JSON: `[
+				{
+				  "checkType": "DEVICE",
+				  "activityType": "SIGNUP",
+				  "checkSessionKey": "string",
+				  "activityData": [
+					{
+					  "kvpKey": "ip.address",
+					  "kvpValue": "true",
+					  "kvpType": "general.bool"
+					}
+				  ]
+				}
+			  ]`},
+		Expected: body{
+			JSON:       "{\"puppy\":true}",
+			StatusCode: 200},
+	},
+	{
+		Comment: "a body has empty string",
+		Request: body{
+			JSON: ""},
+		Expected: body{
+			StatusCode: 500},
+	},
+	{
+		Comment: "a body has wrong activity type",
+		Request: body{
+			JSON: `[
+				{
+				  "checkType": "DEVICE",
+				  "activityType": "SIGNUP1",
+				  "checkSessionKey": "string",
+				  "activityData": [
+					{
+					  "kvpKey": "ip.address",
+					  "kvpValue": "true",
+					  "kvpType": "general.bool"
+					}
+				  ]
+				}
+			  ]`},
+		Expected: body{
+			StatusCode: 500},
+	},
+	{
+		Comment: "a body has wrong activity data",
+		Request: body{
+			JSON: `[
+				{
+				  "checkType": "DEVICE",
+				  "activityType": "SIGNUP",
+				  "checkSessionKey": "string1",
+				  "activityData": [
+					{
+					  "kvpKey": "ip.address",
+					  "kvpValue": "true",
+					  "kvpType": ""
+					}
+				  ]
+				}
+			  ]`},
+		Expected: body{
+			JSON:       "",
+			StatusCode: 500},
+	},
+}
+
 func TestValidCheckType(t *testing.T) {
 	validator := Validator{}
 
@@ -108,42 +211,14 @@ func TestValidActivityData(t *testing.T) {
 	assert.Equal(t, false, validator.validActivityData(incorrectKvpType))
 }
 
-func TestIsGood(t *testing.T) {
-
-	body := `[
-	{
-	  "checkType": "DEVICE",
-	  "activityType": "SIGNUP",
-	  "checkSessionKey": "string",
-	  "activityData": [
-		{
-		  "kvpKey": "ip.address",
-		  "kvpValue": "true",
-		  "kvpType": "general.bool"
-		}
-	  ]
-	}
-  ]`
-
-	req, err := http.NewRequest("POST", "/isgood", strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func newRecorder(req *http.Request, method string, strPath string, fnHandler func(w http.ResponseWriter, r *http.Request, param httprouter.Params)) *httptest.ResponseRecorder {
 	router := httprouter.New()
-	router.Handle("POST", "/isgood", isGood)
+	router.Handle(method, strPath, fnHandler)
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != 200 {
-		t.Error("Expected response code to be 200")
-	}
 
-	expected := "{\"puppy\":true}"
-	if rec.Body.String() != expected {
-		t.Error("Response body does not match")
-	}
-
+	return rec
 }
 
 func TestIsGoodNilBody(t *testing.T) {
@@ -152,12 +227,29 @@ func TestIsGoodNilBody(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	router := httprouter.New()
-	router.Handle("POST", "/isgood", isGood)
-
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+	rec := newRecorder(req, "POST", "/isgood", isGood)
 	if rec.Code != 500 {
 		t.Error("Expected response code to be 200")
+	}
+}
+func TestIsGoodErrorCheckType(t *testing.T) {
+
+	for _, item := range testCases {
+
+		body := item.Request.JSON
+
+		req, err := http.NewRequest("POST", "/isgood", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rec := newRecorder(req, "POST", "/isgood", isGood)
+		if rec.Code != item.Expected.StatusCode {
+			t.Error("Expected response code to be 200")
+		}
+
+		if item.Expected.JSON != "" {
+			assert.Equal(t, item.Expected.JSON, rec.Body.String())
+		}
 	}
 }

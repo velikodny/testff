@@ -55,7 +55,7 @@ func isGood(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	for _, item := range *req {
 		switch {
 		case !validator.validCheckType(item.CheckType):
-			fallthrough
+			break
 		case !validator.validActivityType(item.ActivityType):
 			break
 		case !validator.validActivityData(item.ActivityData):
